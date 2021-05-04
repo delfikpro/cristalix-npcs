@@ -1,0 +1,4 @@
+main: ru.cristalix.npcs.server.Bootstrap
+version: 1.0
+name: NPCs
+depend: [CoreAPI]
