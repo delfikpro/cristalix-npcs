@@ -1,4 +1,0 @@
-main: ru.cristalix.npcs.server.NpcsPlugin
-version: 1
-name: NpcsPlugin
-depend: [CoreAPI, HeartwarmingPlace]
