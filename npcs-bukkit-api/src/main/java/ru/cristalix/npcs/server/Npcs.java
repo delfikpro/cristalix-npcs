@@ -40,7 +40,7 @@ import java.util.Set;
 public class Npcs implements Listener {
 
 	private static final Gson gson = new Gson();
-	private static final Set<Npc> globalNpcs = new HashSet<>();
+	public static final Set<Npc> globalNpcs = new HashSet<>();
 	private static final ByteBuf mod = Unpooled.buffer();
 
 	public static final Set<Player> active = new HashSet<>();
@@ -71,6 +71,20 @@ public class Npcs implements Listener {
 		if (!globalNpcs.add(npc)) return;
 		for (Player player : npc.getLocation().getWorld().getPlayers()) {
 			show(npc, player);
+		}
+	}
+
+	public static void hide(Npc npc) {
+		if (globalNpcs.remove(npc)) {
+
+			ByteBuf buf = Unpooled.buffer();
+			buf.writeInt(npc.getId());
+
+			for (Player player : active) {
+				val packet = new PacketPlayOutCustomPayload("npcs:hide", new PacketDataSerializer(buf.retainedSlice()));
+				((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
+			}
+
 		}
 	}
 
@@ -120,7 +134,7 @@ public class Npcs implements Listener {
 	public void handle(PlayerUseUnknownEntityEvent e) {
 		if (e.getHand() == EquipmentSlot.OFF_HAND) return;
 		for (Npc npc : globalNpcs) {
-			if (npc.getId() == e.getEntityId()) {
+			if (npc.getId() == e.getEntityId() && npc.getOnClick() != null) {
 				npc.getOnClick().accept(e.player);
 			}
 		}

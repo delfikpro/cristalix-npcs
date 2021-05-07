@@ -27,13 +27,10 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Consumer;
 
-@SuppressWarnings("Convert2Lambda")
+@SuppressWarnings({"Convert2Lambda", "Java8CollectionRemoveIf"})
 public class NpcsMod implements ModMain {
 
 	private Listener listener;
@@ -62,6 +59,17 @@ public class NpcsMod implements ModMain {
 						world.spawnEntity(npc.getEntity());
 					}
 				}
+				if (pluginMessage.getChannel().equals("npcs:hide")) {
+					int id = pluginMessage.getData().readInt();
+					Iterator<Npc> iterator = npcs.iterator();
+					while (iterator.hasNext()) {
+						EntityLivingBase entity = iterator.next().getEntity();
+						if (entity.getEntityId() == id) {
+							iterator.remove();
+							clientApi.minecraft().getWorld().removeEntity(entity);
+						}
+					}
+				}
 			}
 		}, 1);
 
@@ -81,17 +89,17 @@ public class NpcsMod implements ModMain {
 				}
 			}
 		}, 1);
-		clientApi.eventBus().register(listener, ChunkUnload.class, new Consumer<ChunkUnload>() {
-			@Override
-			public void accept(ChunkUnload event) {
-				Chunk chunk = event.getChunk();
-				for (Npc npc : npcs) {
-					int chunkX = ((int) npc.getEntity().getX()) >> 4;
-					int chunkZ = ((int) npc.getEntity().getZ()) >> 4;
-					if (chunkX == chunk.getX() && chunkZ == chunk.getZ()) event.getChunk().getWorld().removeEntity(npc.getEntity());
-				}
-			}
-		}, 1);
+//		clientApi.eventBus().register(listener, ChunkUnload.class, new Consumer<ChunkUnload>() {
+//			@Override
+//			public void accept(ChunkUnload event) {
+//				Chunk chunk = event.getChunk();
+//				for (Npc npc : npcs) {
+//					int chunkX = ((int) npc.getEntity().getX()) >> 4;
+//					int chunkZ = ((int) npc.getEntity().getZ()) >> 4;
+//					if (chunkX == chunk.getX() && chunkZ == chunk.getZ()) event.getChunk().getWorld().removeEntity(npc.getEntity());
+//				}
+//			}
+//		}, 1);
 
 		int[] ticks = {0};
 
