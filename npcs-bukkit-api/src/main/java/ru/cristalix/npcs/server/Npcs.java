@@ -71,9 +71,8 @@ public class Npcs implements Listener, PluginMessageListener {
 		}
 	}
 
-	public static void hide(Npc npc) {
+	public static void remove(Npc npc) {
 		if (globalNpcs.remove(npc)) {
-
 			ByteBuf buf = Unpooled.buffer();
 			buf.writeInt(npc.getId());
 
@@ -81,7 +80,6 @@ public class Npcs implements Listener, PluginMessageListener {
 				val packet = new PacketPlayOutCustomPayload("npcs:hide", new PacketDataSerializer(buf.retainedSlice()));
 				((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
 			}
-
 		}
 	}
 
@@ -97,6 +95,14 @@ public class Npcs implements Listener, PluginMessageListener {
 
 		val packet = new PacketPlayOutCustomPayload("npcs", new PacketDataSerializer(npc.getInternalCachedData().retainedSlice()));
 
+		((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
+	}
+
+	public static void hide(Npc npc, Player player) {
+		ByteBuf buf = Unpooled.buffer();
+		buf.writeInt(npc.getId());
+
+		val packet = new PacketPlayOutCustomPayload("npcs:hide", new PacketDataSerializer(buf));
 		((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
 	}
 
