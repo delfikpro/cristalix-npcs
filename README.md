@@ -82,7 +82,7 @@ Npc npc = Npc.builder()
         .build();
 
 Npcs.spawn(npc); // Добавление NPC в мир
-Npcs.remove(npc); // Удаление NPC в мир
+Npcs.remove(npc); // Удаление NPC из мира
 
 Npcs.show(npc); // Отправка NPC определённому игроку
 Npcs.hide(npc); // Скрытие NPC у определённого игрока
