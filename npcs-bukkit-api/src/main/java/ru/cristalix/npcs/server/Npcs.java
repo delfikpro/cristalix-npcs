@@ -16,66 +16,62 @@ import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.Plugin;
-import ru.cristalix.core.GlobalSerializers;
+import org.bukkit.plugin.messaging.PluginMessageListener;
 import ru.cristalix.core.display.DisplayChannels;
 import ru.cristalix.core.display.messages.Mod;
-import ru.cristalix.core.network.ISocketClient;
-import ru.cristalix.core.network.packages.PluginMessagePackage;
-import ru.cristalix.core.plugin.TextPluginMessage;
 import ru.cristalix.npcs.data.NpcData;
 
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Level;
 
-public class Npcs implements Listener {
+public class Npcs implements Listener, PluginMessageListener {
 
 	private static final Gson gson = new Gson();
+	private static boolean initialized = false;
+	private static Plugin plugin;
+
 	private static final Set<Npc> globalNpcs = new HashSet<>();
 	private static final ByteBuf mod = Unpooled.buffer();
 
-	public static final Set<Player> active = new HashSet<>();
-	private static Plugin plugin;
+	private static final Set<Player> active = new HashSet<>();
+	private static final Set<Player> clickCooldowns = new HashSet<>();
 
 	@SneakyThrows
 	public static void init(Plugin plugin) {
+		if (initialized) {
+			plugin.getLogger().log(Level.WARNING, "Unable to initialize NPCs because already initialized!",
+					new IllegalStateException());
+			return;
+		}
+
 		Npcs.plugin = plugin;
-		Bukkit.getPluginManager().registerEvents(new Npcs(), plugin);
 
-		Bukkit.getMessenger().registerIncomingPluginChannel(plugin, "npcs:loaded", (channel, player, data) -> {
-			active.add(player);
-
-			for (Npc npcs : globalNpcs) {
-				if (npcs.getLocation().getWorld() == player.getWorld()) {
-					show(npcs, player);
-				}
-			}
-		});
+		Npcs listener = new Npcs();
+		Bukkit.getPluginManager().registerEvents(listener, plugin);
+		Bukkit.getMessenger().registerIncomingPluginChannel(plugin, "npcs:loaded", listener);
 
 		InputStream resource = plugin.getResource("npcs-client-mod.jar");
 		byte[] serialize = IOUtils.readFully(resource, resource.available());
 		mod.writeBytes(Mod.serialize(new Mod(serialize)));
 
+		initialized = true;
 	}
 
 	public static void spawn(Npc npc) {
-		if (!globalNpcs.add(npc)) return;
-		for (Player player : npc.getLocation().getWorld().getPlayers()) {
-			show(npc, player);
+		if (globalNpcs.add(npc)) {
+			for (Player player : npc.getLocation().getWorld().getPlayers()) {
+				send(npc, player);
+			}
 		}
 	}
 
-	public static void show(Npc npc, Player player) {
-
+	public static void send(Npc npc, Player player) {
 		ByteBuf internalCachedData = npc.getInternalCachedData();
 		if (internalCachedData == null) {
 			NpcData data = npc.getData();
@@ -91,37 +87,60 @@ public class Npcs implements Listener {
 	}
 
 	@EventHandler
-	public void onJoin(PlayerJoinEvent e) {
-		PacketDataSerializer ds = new PacketDataSerializer(mod.retainedSlice());
-		PacketPlayOutCustomPayload packet = new PacketPlayOutCustomPayload(DisplayChannels.MOD_CHANNEL, ds);
-		((CraftPlayer) e.getPlayer()).getHandle().playerConnection.sendPacket(packet);
+	public void handleJoin(PlayerJoinEvent event) {
+		Player player = event.getPlayer();
+		PacketDataSerializer serializer = new PacketDataSerializer(mod.retainedSlice());
+		PacketPlayOutCustomPayload packet = new PacketPlayOutCustomPayload(DisplayChannels.MOD_CHANNEL, serializer);
+		((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
 	}
 
 	@EventHandler
-	public void onQuit(PlayerQuitEvent e) {
-		active.remove(e.getPlayer());
+	public void handleQuit(PlayerQuitEvent event) {
+		Player player = event.getPlayer();
+		active.remove(player);
+		clickCooldowns.remove(player);
 	}
 
 	@EventHandler
-	public void handle(EntityAddToWorldEvent e) {
-		if (!(e.getEntity() instanceof CraftPlayer)) return;
+	public void handleEntityAdd(EntityAddToWorldEvent event) {
+		if (!(event.getEntity() instanceof CraftPlayer)) {
+			return;
+		}
 
-		CraftPlayer player = (CraftPlayer) e.getEntity();
-		if (!active.contains(player)) return;
-
-		for (Npc npcs : globalNpcs) {
-			if (npcs.getLocation().getWorld() == e.entity.getWorld()) {
-				show(npcs, player);
+		CraftPlayer player = (CraftPlayer) event.getEntity();
+		if (active.contains(player)) {
+			for (Npc npcs : globalNpcs) {
+				if (npcs.getLocation().getWorld() == event.entity.getWorld()) {
+					send(npcs, player);
+				}
 			}
 		}
 	}
 
 	@EventHandler
-	public void handle(PlayerUseUnknownEntityEvent e) {
-		if (e.getHand() == EquipmentSlot.OFF_HAND) return;
-		for (Npc npc : globalNpcs) {
-			if (npc.getId() == e.getEntityId()) {
-				npc.getOnClick().accept(e.player);
+	public void handleNpcInteract(PlayerUseUnknownEntityEvent event) {
+		if (event.getHand() == EquipmentSlot.HAND) {
+			Player player = event.getPlayer();
+			for (Npc npc : globalNpcs) {
+				if (npc.getId() == event.getEntityId() && !clickCooldowns.contains(player)) {
+					clickCooldowns.add(player);
+					Bukkit.getScheduler().runTask(plugin, () -> {
+						clickCooldowns.remove(player);
+					});
+					npc.getOnClick().accept(player);
+				}
+			}
+		}
+	}
+
+
+	@Override
+	public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
+		active.add(player);
+
+		for (Npc npcs : globalNpcs) {
+			if (npcs.getLocation().getWorld() == player.getWorld()) {
+				send(npcs, player);
 			}
 		}
 	}

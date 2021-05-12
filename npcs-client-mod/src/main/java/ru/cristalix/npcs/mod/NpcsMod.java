@@ -36,7 +36,6 @@ public class NpcsMod implements ModMain {
 
 	@Override
 	public void load(ClientApi clientApi) {
-
 		this.clientApi = clientApi;
 
 		clientApi.messageBus().register(clientApi.messageBus().createListener(), PluginMessage.class, new Consumer<PluginMessage>() {

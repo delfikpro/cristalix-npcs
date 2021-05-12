@@ -1,8 +1,5 @@
 package ru.cristalix.npcs.mod;
 
-
-import dev.xdark.clientapi.entity.Entity;
-import dev.xdark.clientapi.entity.EntityLiving;
 import dev.xdark.clientapi.entity.EntityLivingBase;
 import lombok.Data;
 import ru.cristalix.npcs.data.NpcData;

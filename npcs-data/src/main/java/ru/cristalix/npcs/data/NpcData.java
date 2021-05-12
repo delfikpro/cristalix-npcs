@@ -18,5 +18,4 @@ public class NpcData {
 	private final String skinDigest;
 	private final boolean slimArms;
 
-
 }
