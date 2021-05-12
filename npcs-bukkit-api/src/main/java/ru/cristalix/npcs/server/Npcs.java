@@ -66,12 +66,26 @@ public class Npcs implements Listener, PluginMessageListener {
 	public static void spawn(Npc npc) {
 		if (globalNpcs.add(npc)) {
 			for (Player player : npc.getLocation().getWorld().getPlayers()) {
-				send(npc, player);
+				show(npc, player);
 			}
 		}
 	}
 
-	public static void send(Npc npc, Player player) {
+	public static void hide(Npc npc) {
+		if (globalNpcs.remove(npc)) {
+
+			ByteBuf buf = Unpooled.buffer();
+			buf.writeInt(npc.getId());
+
+			for (Player player : active) {
+				val packet = new PacketPlayOutCustomPayload("npcs:hide", new PacketDataSerializer(buf.retainedSlice()));
+				((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
+			}
+
+		}
+	}
+
+	public static void show(Npc npc, Player player) {
 		ByteBuf internalCachedData = npc.getInternalCachedData();
 		if (internalCachedData == null) {
 			NpcData data = npc.getData();
@@ -111,7 +125,7 @@ public class Npcs implements Listener, PluginMessageListener {
 		if (active.contains(player)) {
 			for (Npc npcs : globalNpcs) {
 				if (npcs.getLocation().getWorld() == event.entity.getWorld()) {
-					send(npcs, player);
+					show(npcs, player);
 				}
 			}
 		}
@@ -122,12 +136,15 @@ public class Npcs implements Listener, PluginMessageListener {
 		if (event.getHand() == EquipmentSlot.HAND) {
 			Player player = event.getPlayer();
 			for (Npc npc : globalNpcs) {
-				if (npc.getId() == event.getEntityId() && !clickCooldowns.contains(player)) {
-					clickCooldowns.add(player);
-					Bukkit.getScheduler().runTask(plugin, () -> {
-						clickCooldowns.remove(player);
-					});
-					npc.getOnClick().accept(player);
+				if (npc.getId() == event.getEntityId()) {
+					if (!clickCooldowns.contains(player) && npc.getOnClick() != null) {
+						clickCooldowns.add(player);
+						Bukkit.getScheduler().runTask(plugin, () -> {
+							clickCooldowns.remove(player);
+						});
+						npc.getOnClick().accept(player);
+					}
+					break;
 				}
 			}
 		}
@@ -138,9 +155,9 @@ public class Npcs implements Listener, PluginMessageListener {
 	public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
 		active.add(player);
 
-		for (Npc npcs : globalNpcs) {
-			if (npcs.getLocation().getWorld() == player.getWorld()) {
-				send(npcs, player);
+		for (Npc npc : globalNpcs) {
+			if (npc.getLocation().getWorld() == player.getWorld()) {
+				show(npc, player);
 			}
 		}
 	}

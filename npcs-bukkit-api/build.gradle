@@ -50,7 +50,7 @@ publishing {
         create('bukkitApi', MavenPublication) {
             it.groupId 'ru.cristalix'
             it.artifactId 'npcs-bukkit-api'
-            it.version '3.0.5'
+            it.version '3.1-unstable01'
             it.artifact jar
         }
     }
